@@ -1,0 +1,9 @@
+# Archivos de compilación y directorios
+/target/
+
+# Dependencias de Cargo
+Cargo.lock
+
+# Archivos de IDE (ej. IntelliJ IDEA, VS Code)
+.idea/
+.vscode/
