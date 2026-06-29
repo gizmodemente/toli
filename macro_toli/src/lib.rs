@@ -1,3 +1,16 @@
+//! # macro_toli
+//!
+//! `macro_toli` is a procedural macro crate that provides the `#[tool]` attribute macro.
+//! This macro simplifies the process of defining AI tools by automatically generating
+//! the necessary `IATool` implementation for a given Rust function.
+//!
+//! It handles:
+//! - Parsing function signatures to determine tool arguments and their types.
+//! - Extracting documentation comments to use as tool and argument descriptions.
+//! - Generating a struct that implements the `toli::IATool` trait.
+//! - Managing the conversion between `toli::WrappedData` and native Rust types
+//!   for function calls and return values.
+//! 
 use quote::{quote, format_ident};
 use syn::{parse_macro_input, ItemFn, FnArg, Pat, Type, ReturnType, LitStr, Expr, Lit, Meta};
 use proc_macro::TokenStream;
@@ -18,6 +31,46 @@ fn format_name_for_description(s: &str) -> String {
     }
 }
 
+/// Attribute macro to transform a standard Rust function into an AI tool.
+///
+/// This macro automatically generates a new struct that implements the `toli::IATool` trait,
+/// allowing the function to be exposed and called by AI models.
+///
+/// # Usage
+/// Apply `#[tool]` to a public function. The function's arguments and return type
+/// must be one of the supported types: `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`, `u64`,
+/// `String`, `bool`, or `f64`.
+///
+/// Documentation comments (`///`) on the function will be used as the tool's description.
+/// Argument descriptions can be provided within the function's doc comment under a
+/// "Parameters:" section, e.g.:
+///
+/// ```ignore
+/// /// This is a tool that adds two numbers.
+/// ///
+/// /// Parameters:
+/// /// - a: The first number to add.
+/// /// - b: The second number to add.
+/// #[tool]
+/// pub fn add_numbers(a: i32, b: i32) -> i32 {
+///     a + b
+/// }
+/// ```
+///
+/// # Generated Code
+/// For a function like `add_numbers(a: i32, b: i32) -> i32`, the macro will generate:
+/// - The original `add_numbers` function.
+/// - A new struct named `AddNumbersTool`.
+/// - An `impl toli::IATool for AddNumbersTool` block, which:
+///   - Implements `call` to parse `HashMap<String, toli::WrappedData>` into native types,
+///     call `add_numbers`, and returns the result.
+///   - Implements `get_description` to provide `toli::IAToolDefinition` based on
+///     the function's name, doc comments, and argument types.
+///
+/// # Panics
+/// - If an argument type or return type is not supported.
+/// - If a required argument is missing during a `call`.
+/// - If a type mismatch occurs during argument conversion in a `call`.
 #[proc_macro_attribute]
 pub fn tool(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input_fn = parse_macro_input!(item as ItemFn);
@@ -218,26 +271,10 @@ pub fn tool(_attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     }
 
-    let output_type = &input_fn.sig.output;
-    let return_conversion = match output_type {
-        ReturnType::Default => quote! { toli::WrappedData::Text("".to_string()) },
-        ReturnType::Type(_, ty) => {
-            if let Type::Path(type_path) = &**ty {
-                let type_name = type_path.path.segments.last().unwrap().ident.to_string();
-                match type_name.as_str() {
-                    "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" => {
-                        // Use .into() which leverages From<PrimitiveType> for WrappedInt
-                        quote! { toli::WrappedData::Number(result.into()) }
-                    },
-                    "String" => quote! { toli::WrappedData::Text(result) },
-                    "bool" => quote! { toli::WrappedData::Boolean(result) },
-                    "f64" => quote! { toli::WrappedData::Float(result) },
-                    _ => return syn::Error::new_spanned(ty, &format!("Unsupported return type '{}' for tool macro. Only integer types (i8..u64), String, bool, f64 are supported.", type_name)).to_compile_error().into(),
-                }
-            } else {
-                return syn::Error::new_spanned(ty, "Unsupported return type for tool macro. Only integer types (i8..u64), String, bool, f64 are supported.").to_compile_error().into();
-            }
-        }
+    // Determine the original return type of the function
+    let original_return_type = match &input_fn.sig.output {
+        ReturnType::Default => quote! { () }, // Unit type
+        ReturnType::Type(_, ty) => quote! { #ty },
     };
 
     let expanded = quote! {
@@ -245,10 +282,12 @@ pub fn tool(_attr: TokenStream, item: TokenStream) -> TokenStream {
         pub struct #tool_struct_name;
 
         impl toli::IATool for #tool_struct_name {
-            fn call(&self, args: std::collections::HashMap<String, toli::WrappedData>) -> toli::WrappedData {
+            type OriginalReturnType = #original_return_type; // Set the associated type
+
+            fn call(&self, args: std::collections::HashMap<String, toli::WrappedData>) -> Self::OriginalReturnType {
                 #args_map_creation
                 let result = #original_fn_name(#call_args);
-                #return_conversion
+                result // Directly return the result
             }
 
             fn get_description(&self) -> toli::IAToolDefinition {

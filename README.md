@@ -8,7 +8,7 @@
 *   **Doc Comment Parsing:** Extracts function descriptions and argument details from standard Rust doc comments.
 *   **Intelligent Description Generation:** Automatically generates default descriptions for functions and arguments if not explicitly provided, by formatting `snake_case` names into human-readable strings.
 *   **Ignorable Doc Sections:** Automatically ignores common Rust doc sections like `# Examples`, `# Panics`, `# Errors`, and `# Safety` when extracting descriptions.
-*   **Flexible Data Handling:** Uses `WrappedData` and `WrappedInt` enums to handle various primitive types (integers, strings, booleans, floats) for function arguments and return values, enabling dynamic type-safe invocation.
+*   **Flexible Data Handling:** Uses `WrappedData` and `WrappedInt` enums to handle various primitive types (integers, strings, booleans, floats) for function arguments, enabling dynamic type-safe invocation.
 
 ## How to Add `toli` to Your Project
 
@@ -16,7 +16,7 @@ To use `toli` in your Rust project, add it as a dependency in your `Cargo.toml` 
 
 ```toml
 [dependencies]
-toli = { path = "../toli" } # Adjust path if 'toli' is not a sibling crate
+toli = "0.1.0"
 ```
 
 ## How to Use the `#[tool]` Macro
@@ -51,7 +51,7 @@ use toli::tool; // Import the macro from 'toli'
 /// args.insert("second_number".to_string(), WrappedData::Number(WrappedInt::I64(5)));
 /// args.insert("operation_type".to_string(), WrappedData::Text("add".to_string()));
 /// let result = tool_instance.call(args);
-/// assert_eq!(result, WrappedData::Text("Result: 15".to_string()));
+/// assert_eq!(result, "Result: 15".to_string());
 /// ```
 ///
 /// # Panics
@@ -93,7 +93,7 @@ fn main() {
     args.insert("operation_type".to_string(), WrappedData::Text("subtract".to_string()));
 
     let result = tool_instance.call(args);
-    if let WrappedData::Text(s) = result {
+    if let s = result {
         println!("Tool Call Result: {}", s); // Output: "Tool Call Result: Result: 10"
     }
 }
@@ -118,9 +118,9 @@ The `#[tool]` macro parses doc comments (`///`) with the following rules:
 
 These sections and their content will not be included in the extracted `description` field of the `IAToolDefinition`.
 
-### Supported Argument and Return Types
+### Supported Argument
 
-The macro supports the following types for function arguments and return values, which are mapped to `toli::WrappedData` variants:
+The macro supports the following types for function arguments, which are mapped to `toli::WrappedData` variants:
 
 *   All integer primitives: `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`, `u64` (mapped to `WrappedData::Number(WrappedInt::...)`)
 *   `String` (mapped to `WrappedData::Text`)
@@ -128,3 +128,31 @@ The macro supports the following types for function arguments and return values,
 *   `f64` (mapped to `WrappedData::Float`)
 
 Conversions between `WrappedInt` and primitive integer types are handled automatically using `From` and `TryFrom` implementations provided by the `toli` crate, ensuring type safety and proper error handling for out-of-range conversions.
+
+### Returning Custom Types
+
+The macro supports functions returning user defined structs. To allow the macro returning this type the struct must be declared as public. 
+
+```rust
+    #[derive(Debug, PartialEq)]
+    pub struct MyCustomResult {
+        id: u32,
+        message: String,
+        is_success: bool,
+    }
+
+    /// A tool that generates a custom result struct.
+    ///
+    /// Parameters:
+    /// - input_id: An identifier for the result.
+    /// - input_message: A message to include in the result.
+    /// - success_status: Whether the operation was successful.
+    #[tool]
+    fn get_custom_result(input_id: u32, input_message: String, success_status: bool) -> MyCustomResult {
+        MyCustomResult {
+            id: input_id,
+            message: format!("Processed: {}", input_message),
+            is_success: success_status,
+        }
+    }
+```
