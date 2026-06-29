@@ -258,7 +258,6 @@ pub fn tool(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 LitStr::new(&default_desc, proc_macro2::Span::call_site())
             };
 
-
             generated_arg_inserts = quote! {
                 #generated_arg_inserts
                 arguments.insert(stringify!(#arg_name).to_string(), toli::IAArgument {
@@ -284,7 +283,8 @@ pub fn tool(_attr: TokenStream, item: TokenStream) -> TokenStream {
         impl toli::IATool for #tool_struct_name {
             type OriginalReturnType = #original_return_type; // Set the associated type
 
-            fn call(&self, args: std::collections::HashMap<String, toli::WrappedData>) -> Self::OriginalReturnType {
+            fn call(&self,  json_string_args: String) -> Self::OriginalReturnType {
+                let args = self.parse_json_args(json_string_args);
                 #args_map_creation
                 let result = #original_fn_name(#call_args);
                 result // Directly return the result

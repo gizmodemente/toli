@@ -6,13 +6,15 @@
 
 *   **Automatic Tool Definition:** Transform any Rust function into a structured tool definition with a simple attribute macro.
 *   **Doc Comment Parsing:** Extracts function descriptions and argument details from standard Rust doc comments.
-*   **Intelligent Description Generation:** Automatically generates default descriptions for functions and arguments if not explicitly provided, by formatting `snake_case` names into human-readable strings.
+*   **Intelligent Description Generation:** Automatically generates default descriptions for functions and arguments if not explicitly provided, by formatting `snake_case` names into human-readable strings (e.g., `add_values` -> "Add values").
 *   **Ignorable Doc Sections:** Automatically ignores common Rust doc sections like `# Examples`, `# Panics`, `# Errors`, and `# Safety` when extracting descriptions.
-*   **Flexible Data Handling:** Uses `WrappedData` and `WrappedInt` enums to handle various primitive types (integers, strings, booleans, floats) for function arguments, enabling dynamic type-safe invocation.
+*   **Flexible Data Handling:** Uses `WrappedData` and `WrappedInt` enums to handle various primitive types (integers, strings, booleans, floats) for function arguments.
+*   **Robust JSON Argument Parsing:** The generated tools can receive arguments as a JSON string. The `parse_json_args` method intelligently converts JSON values to the expected Rust types, including attempting to parse string representations of numbers and booleans.
+*   **Direct Return Types:** The `call` method of the generated tool directly returns the `OriginalReturnType` of the wrapped function, ensuring type safety and avoiding unnecessary conversions.
 
 ## How to Add `toli` to Your Project
 
-To use `toli` in your Rust project, add it as a dependency in your `Cargo.toml` file. Since `toli` re-exports its procedural macro, you only need to add `toli` itself.
+To use `toli` in your Rust project, add it as a dependency in your `Cargo.toml` file.
 
 ```toml
 [dependencies]
@@ -23,14 +25,13 @@ toli = "0.1.0"
 
 The `#[tool]` macro can be applied to any `fn` definition. It will automatically generate a unit struct named `[FunctionName]Tool` (e.g., `my_function` -> `MyFunctionTool`) that implements the `toli::IATool` trait.
 
-### Example Function Annotation
+### Function Annotation Example
 
 Annotate your function with `#[tool]`. The function's documentation comments will be parsed to extract its description and argument details.
 
 ```rust
-use toli::{IATool, WrappedData, WrappedInt, ArgumentType};
-use std::collections::HashMap;
-use toli::tool; // Import the macro from 'toli'
+use toli::tool;
+use toli::IATool;
 
 /// This is a comprehensive description of my awesome tool.
 /// It performs a calculation based on two numbers and returns a string.
@@ -41,18 +42,7 @@ use toli::tool; // Import the macro from 'toli'
 /// - first_number: The initial integer value for the calculation.
 /// - second_number: The second integer value to be added.
 /// - operation_type: The type of operation to perform (e.g., "add", "subtract").
-///
-/// # Examples
-/// ```
-/// // Example usage of the tool
-/// let tool_instance = MyAwesomeToolTool;
-/// let mut args = HashMap::new();
-/// args.insert("first_number".to_string(), WrappedData::Number(WrappedInt::I64(10)));
-/// args.insert("second_number".to_string(), WrappedData::Number(WrappedInt::I64(5)));
-/// args.insert("operation_type".to_string(), WrappedData::Text("add".to_string()));
-/// let result = tool_instance.call(args);
-/// assert_eq!(result, "Result: 15".to_string());
-/// ```
+/// - enable_logging: Whether to enable verbose logging for this operation.
 ///
 /// # Panics
 /// This function will panic if `operation_type` is not recognized.
@@ -63,22 +53,60 @@ use toli::tool; // Import the macro from 'toli'
 /// # Safety
 /// This function is safe to call.
 #[tool]
-fn my_awesome_tool(first_number: i64, second_number: i64, operation_type: String) -> String {
+fn my_awesome_tool(
+    first_number: i64,
+    second_number: i64,
+    operation_type: String,
+    enable_logging: bool,
+) -> String {
+    let log_status = if enable_logging { "with logging" } else { "without logging" };
     match operation_type.as_str() {
-        "add" => format!("Result: {}", first_number + second_number),
-        "subtract" => format!("Result: {}", first_number - second_number),
+        "add" => format!("Result: {} {} ({})", first_number + second_number, log_status, operation_type),
+        "subtract" => format!("Result: {} {} ({})", first_number - second_number, log_status, operation_type),
         _ => panic!("Unsupported operation type: {}", operation_type),
     }
 }
 
-// You can then use the generated tool struct:
+// Define a custom struct that can be returned by a tool
+#[derive(Debug, PartialEq)]
+pub struct CalculationSummary {
+    pub operation: String,
+    pub operands: (i64, i64),
+    pub result: i64,
+    pub logged: bool,
+}
+
+/// A tool that performs an operation and returns a structured summary.
+///
+/// Parameters:
+/// - val1: The first operand.
+/// - val2: The second operand.
+/// - op: The operation to perform (e.g., "multiply", "divide").
+/// - log: Whether the operation was logged.
+#[tool]
+fn perform_calculation(val1: i64, val2: i64, op: String, log: bool) -> CalculationSummary {
+    let res = match op.as_str() {
+        "multiply" => val1 * val2,
+        "divide" => val1 / val2,
+        _ => panic!("Unsupported calculation operation: {}", op),
+    };
+    CalculationSummary {
+        operation: op,
+        operands: (val1, val2),
+        result: res,
+        logged: log,
+    }
+}
+
+
 fn main() {
-    let tool_instance = MyAwesomeToolTool; // The macro generates this struct
+    // --- Example 1: Using my_awesome_tool ---
+    let awesome_tool_instance = MyAwesomeToolTool; // The macro generates this struct
 
     // Get the tool's description
-    let description = tool_instance.get_description();
-    println!("Tool Name: {}", description.name);
-    println!("Tool Description: {}", description.description);
+    let description = awesome_tool_instance.get_description();
+    println!("--- Tool Definition: {} ---", description.name);
+    println!("Description: {}", description.description);
     for (arg_name, arg_details) in description.arguments {
         println!(
             "  - {}: (Type: {:?}, Required: {}, Description: '{}')",
@@ -86,16 +114,32 @@ fn main() {
         );
     }
 
-    // Call the tool
-    let mut args = HashMap::new();
-    args.insert("first_number".to_string(), WrappedData::Number(WrappedInt::I64(20)));
-    args.insert("second_number".to_string(), WrappedData::Number(WrappedInt::I64(10)));
-    args.insert("operation_type".to_string(), WrappedData::Text("subtract".to_string()));
+    // Call the tool, providing arguments as a JSON string
+    let json_args_string = "{ \
+        \"first_number\": 20, \
+        \"second_number\": \"10\", \
+        \"operation_type\": \"subtract\", \
+        \"enable_logging\": \"true\" \
+    }".to_string();
 
-    let result = tool_instance.call(args);
-    if let s = result {
-        println!("Tool Call Result: {}", s); // Output: "Tool Call Result: Result: 10"
-    }
+    let result: String = awesome_tool_instance.call(json_args_string);
+    println!("Tool Call Result (my_awesome_tool): {}", result);
+    // Expected Output: "Tool Call Result (my_awesome_tool): Result: 10 with logging (subtract)"
+
+
+    // --- Example 2: Using perform_calculation with custom struct return ---
+    let calc_tool_instance = PerformCalculationTool;
+
+    let json_calc_args = "{ \
+        \"val1\": 50, \
+        \"val2\": 5, \
+        \"op\": \"divide\", \
+        \"log\": false \
+    }".to_string();
+
+    let calc_summary: CalculationSummary = calc_tool_instance.call(json_calc_args);
+    println!("Tool Call Result (perform_calculation): {:?}", calc_summary);
+    // Expected Output: "Tool Call Result (perform_calculation): CalculationSummary { operation: "divide", operands: (50, 5), result: 10, logged: false }"
 }
 ```
 
@@ -120,39 +164,15 @@ These sections and their content will not be included in the extracted `descript
 
 ### Supported Argument
 
-The macro supports the following types for function arguments, which are mapped to `toli::WrappedData` variants:
+The macro supports the following types for function arguments.
 
-*   All integer primitives: `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`, `u64` (mapped to `WrappedData::Number(WrappedInt::...)`)
-*   `String` (mapped to `WrappedData::Text`)
-*   `bool` (mapped to `WrappedData::Boolean`)
-*   `f64` (mapped to `WrappedData::Float`)
+*   All integer primitives: `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`, `u64` (arguments are mapped from `WrappedData::Number(WrappedInt::...)`)
+*   `String` (arguments are mapped from `WrappedData::Text`)
+*   `bool` (arguments are mapped from `WrappedData::Boolean`)
+*   `f64` (arguments are mapped from `WrappedData::Float`)
 
-Conversions between `WrappedInt` and primitive integer types are handled automatically using `From` and `TryFrom` implementations provided by the `toli` crate, ensuring type safety and proper error handling for out-of-range conversions.
+Conversions between `WrappedInt` and primitive integer types are handled automatically using `From` and `TryFrom` implementations provided by the `toli` crate, ensuring type safety and proper error handling for out-of-range conversions when extracting arguments. Additionally, `parse_json_args` will attempt to parse string representations of numbers and booleans if the JSON value is a string.
 
-### Returning Custom Types
+### Function Returns
 
-The macro supports functions returning user defined structs. To allow the macro returning this type the struct must be declared as public. 
-
-```rust
-    #[derive(Debug, PartialEq)]
-    pub struct MyCustomResult {
-        id: u32,
-        message: String,
-        is_success: bool,
-    }
-
-    /// A tool that generates a custom result struct.
-    ///
-    /// Parameters:
-    /// - input_id: An identifier for the result.
-    /// - input_message: A message to include in the result.
-    /// - success_status: Whether the operation was successful.
-    #[tool]
-    fn get_custom_result(input_id: u32, input_message: String, success_status: bool) -> MyCustomResult {
-        MyCustomResult {
-            id: input_id,
-            message: format!("Processed: {}", input_message),
-            is_success: success_status,
-        }
-    }
-```
+The `IATool::call` method will return the exact type specified by the original function's signature including any user-defined `struct` (as long as it's declared public).
