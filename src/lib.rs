@@ -6,7 +6,6 @@
 //! allowing AI models to interact with external functions in a structured manner.
 
 use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
 use std::convert::{From, TryFrom};
 use serde_json::Value;
 
@@ -195,7 +194,7 @@ pub trait IATool {
 ///
 /// This structure is used by AI models to understand the capabilities
 /// and usage of a specific tool.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct IAToolDefinition {
     /// The unique name of the tool.
     pub name: String,
@@ -209,7 +208,7 @@ pub struct IAToolDefinition {
 /// Defines an individual argument for an AI tool.
 ///
 /// Specifies the name, description, expected data type, and whether the argument is required.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct IAArgument {
     /// The name of the argument.
     pub name: String,
@@ -222,7 +221,7 @@ pub struct IAArgument {
 }
 
 /// Enumerates the primitive data types that can be used as arguments for AI tools.
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum ArgumentType {
     I8, U8,
     I16, U16,
@@ -237,7 +236,7 @@ pub enum ArgumentType {
 /// as arguments to AI tools.
 ///
 /// Provides a unified way to handle various data types.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum WrappedData {
     Number(WrappedInt),
     Text(String),
@@ -249,7 +248,7 @@ pub enum WrappedData {
 ///
 /// Used within `WrappedData::Number` to represent integers of various sizes,
 /// both signed and unsigned.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum WrappedInt {
     I8(i8), U8(u8),
     I16(i16), U16(u16),

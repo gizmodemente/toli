@@ -8,7 +8,7 @@
 //! - Parsing function signatures to determine tool arguments and their types.
 //! - Extracting documentation comments to use as tool and argument descriptions.
 //! - Generating a struct that implements the `toli::IATool` trait.
-//! - Managing the conversion between `toli::WrappedData` and native Rust types
+//! - Managing the conversion between a JSON `String` and native Rust types
 //!   for function calls and return values.
 //! 
 use quote::{quote, format_ident};
@@ -62,7 +62,7 @@ fn format_name_for_description(s: &str) -> String {
 /// - The original `add_numbers` function.
 /// - A new struct named `AddNumbersTool`.
 /// - An `impl toli::IATool for AddNumbersTool` block, which:
-///   - Implements `call` to parse `HashMap<String, toli::WrappedData>` into native types,
+///   - Implements `call` to parse a JSON `String` into native types,
 ///     call `add_numbers`, and returns the result.
 ///   - Implements `get_description` to provide `toli::IAToolDefinition` based on
 ///     the function's name, doc comments, and argument types.
