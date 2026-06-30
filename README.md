@@ -8,8 +8,7 @@
 *   **Doc Comment Parsing:** Extracts function descriptions and argument details from standard Rust doc comments.
 *   **Intelligent Description Generation:** Automatically generates default descriptions for functions and arguments if not explicitly provided, by formatting `snake_case` names into human-readable strings (e.g., `add_values` -> "Add values").
 *   **Ignorable Doc Sections:** Automatically ignores common Rust doc sections like `# Examples`, `# Panics`, `# Errors`, and `# Safety` when extracting descriptions.
-*   **Flexible Data Handling:** Uses `WrappedData` and `WrappedInt` enums to handle various primitive types (integers, strings, booleans, floats) for function arguments.
-*   **Robust JSON Argument Parsing:** The generated tools can receive arguments as a JSON string. The `parse_json_args` method intelligently converts JSON values to the expected Rust types, including attempting to parse string representations of numbers and booleans.
+*   **Robust JSON Argument Parsing:** The generated tools can receive arguments as a JSON string. The `parse_json_args` method converts JSON values to the expected Rust types, including attempting to parse string representations of numbers and booleans.
 *   **Direct Return Types:** The `call` method of the generated tool directly returns the `OriginalReturnType` of the wrapped function, ensuring type safety and avoiding unnecessary conversions.
 
 ## How to Add `toli` to Your Project
