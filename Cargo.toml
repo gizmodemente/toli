@@ -5,6 +5,9 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "A Rust library for generating callable tools from functions to be used in Large Language Models (LLMs) or other systems, with JSON argument parsing and doc comment integration."
 repository = "https://github.com/gizmodemente/toli"
+documentation = "https://docs.rs/toli/0.1.0/toli/"
+keywords = ["macro", "tool", "ai", "json"]
+categories = ["development-tools::procedural-macros", "api-bindings"]
 
 [dependencies]
 serde_json = "1.0"

@@ -1,4 +1,6 @@
 # toli - A Rust Procedural Macro for Tool Generation
+[![Crates.io](https://img.shields.io/crates/v/toli)](https://crates.io/crates/toli)
+
 
 `toli` is a Rust library designed to simplify the creation of callable tools, particularly useful for integrating with Large Language Models (LLMs) or other systems that require structured function definitions and dynamic invocation. It provides a procedural macro `#[tool]` that automatically generates a `Tool` implementation for any annotated function, extracting its description and arguments directly from Rust's doc comments.
 
