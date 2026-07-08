@@ -7,7 +7,7 @@ description = "A Rust library for generating callable tools from functions to be
 repository = "https://github.com/gizmodemente/toli"
 documentation = "https://docs.rs/toli/0.1.1/toli/"
 keywords = ["macro", "tool", "ai", "json"]
-categories = ["development-tools::procedural-macros", "api-bindings"]
+categories = ["development-tools", "api-bindings"]
 
 [dependencies]
 serde_json = "1.0"
