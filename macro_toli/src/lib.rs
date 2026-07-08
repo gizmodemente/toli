@@ -161,7 +161,7 @@ pub fn tool(_attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     }
 
-    let fn_description = fn_description_lines.join("\n");
+    let fn_description = fn_description_lines.join(" ");
     // Generate default function description if empty
     let fn_description = if fn_description.is_empty() {
         format_name_for_description(&fn_name.to_string())
