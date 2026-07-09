@@ -44,6 +44,10 @@ pub trait IATool {
     /// for the original function. It validates and converts JSON values
     /// into the `WrappedData` enum based on the tool's argument definitions.
     ///
+    /// For optional arguments (where `IAArgument.required` is `false`), if the argument
+    /// is missing from the JSON input or its value is `null`, `WrappedData::None` will be
+    /// inserted into the map. For required arguments, missing or `null` values will cause a panic.
+    ///
     /// # Arguments
     /// * `json_args` - The `serde_json::Value` to parse.
     ///
@@ -52,7 +56,7 @@ pub trait IATool {
     ///
     /// # Panics
     /// Panics if the JSON structure does not match the expected argument types
-    /// or if required arguments are missing.
+    /// or if required arguments are missing or `null`.
     fn parse_json_args(&self, json_string_args: String) -> HashMap<String, WrappedData> {
         let mut parsed_args = HashMap::new();
 
@@ -65,114 +69,20 @@ pub trait IATool {
         let tool_description = self.get_description();
 
         for (arg_name, arg_def) in tool_description.arguments {
-            let json_value = json_obj.get(&arg_name)
-                .expect(&format!("Missing required argument '{}' in JSON input.", arg_name));
+            let json_arg_value = json_obj.get(&arg_name);
 
-            let wrapped_data = match arg_def.arg_type {
-                ArgumentType::I8 => {
-                    if let Some(num) = json_value.as_i64() {
-                        WrappedData::Number(num.try_into().expect(&format!("Number out of range for i8: {}", num)))
-                    } else if let Some(s) = json_value.as_str() {
-                        let num: i8 = s.parse().expect(&format!("Argument '{}' expected i8 number or string convertible to i8, got string '{}'", arg_name, s));
-                        WrappedData::Number(num.into())
-                    } else {
-                        panic!("Argument '{}' expected i8 number or string convertible to i8, got {:?}", arg_name, json_value);
-                    }
-                },
-                ArgumentType::U8 => {
-                    if let Some(num) = json_value.as_u64() {
-                        WrappedData::Number(num.try_into().expect(&format!("Number out of range for u8: {}", num)))
-                    } else if let Some(s) = json_value.as_str() {
-                        let num: u8 = s.parse().expect(&format!("Argument '{}' expected u8 number or string convertible to u8, got string '{}'", arg_name, s));
-                        WrappedData::Number(num.into())
-                    } else {
-                        panic!("Argument '{}' expected u8 number or string convertible to u8, got {:?}", arg_name, json_value);
-                    }
-                },
-                ArgumentType::I16 => {
-                    if let Some(num) = json_value.as_i64() {
-                        WrappedData::Number(num.try_into().expect(&format!("Number out of range for i16: {}", num)))
-                    } else if let Some(s) = json_value.as_str() {
-                        let num: i16 = s.parse().expect(&format!("Argument '{}' expected i16 number or string convertible to i16, got string '{}'", arg_name, s));
-                        WrappedData::Number(num.into())
-                    } else {
-                        panic!("Argument '{}' expected i16 number or string convertible to i16, got {:?}", arg_name, json_value);
-                    }
-                },
-                ArgumentType::U16 => {
-                    if let Some(num) = json_value.as_u64() {
-                        WrappedData::Number(num.try_into().expect(&format!("Number out of range for u16: {}", num)))
-                    } else if let Some(s) = json_value.as_str() {
-                        let num: u16 = s.parse().expect(&format!("Argument '{}' expected u16 number or string convertible to u16, got string '{}'", arg_name, s));
-                        WrappedData::Number(num.into())
-                    } else {
-                        panic!("Argument '{}' expected u16 number or string convertible to u16, got {:?}", arg_name, json_value);
-                    }
-                },
-                ArgumentType::I32 => {
-                    if let Some(num) = json_value.as_i64() {
-                        WrappedData::Number(num.try_into().expect(&format!("Number out of range for i32: {}", num)))
-                    } else if let Some(s) = json_value.as_str() {
-                        let num: i32 = s.parse().expect(&format!("Argument '{}' expected i32 number or string convertible to i32, got string '{}'", arg_name, s));
-                        WrappedData::Number(num.into())
-                    } else {
-                        panic!("Argument '{}' expected i32 number or string convertible to i32, got {:?}", arg_name, json_value);
-                    }
-                },
-                ArgumentType::U32 => {
-                    if let Some(num) = json_value.as_u64() {
-                        WrappedData::Number(num.try_into().expect(&format!("Number out of range for u32: {}", num)))
-                    } else if let Some(s) = json_value.as_str() {
-                        let num: u32 = s.parse().expect(&format!("Argument '{}' expected u32 number or string convertible to u32, got string '{}'", arg_name, s));
-                        WrappedData::Number(num.into())
-                    } else {
-                        panic!("Argument '{}' expected u32 number or string convertible to u32, got {:?}", arg_name, json_value);
-                    }
-                },
-                ArgumentType::I64 => {
-                    if let Some(num) = json_value.as_i64() {
-                        WrappedData::Number(num.into()) // i64 is infallible from i64
-                    } else if let Some(s) = json_value.as_str() {
-                        let num: i64 = s.parse().expect(&format!("Argument '{}' expected i64 number or string convertible to i64, got string '{}'", arg_name, s));
-                        WrappedData::Number(num.into())
-                    } else {
-                        panic!("Argument '{}' expected i64 number or string convertible to i64, got {:?}", arg_name, json_value);
-                    }
-                },
-                ArgumentType::U64 => {
-                    if let Some(num) = json_value.as_u64() {
-                        WrappedData::Number(num.into()) // u64 is infallible from u64
-                    } else if let Some(s) = json_value.as_str() {
-                        let num: u64 = s.parse().expect(&format!("Argument '{}' expected u64 number or string convertible to u64, got string '{}'", arg_name, s));
-                        WrappedData::Number(num.into())
-                    } else {
-                        panic!("Argument '{}' expected u64 number or string convertible to u64, got {:?}", arg_name, json_value);
-                    }
-                },
-                ArgumentType::Text => {
-                    let s = json_value.as_str().expect(&format!("Argument '{}' expected a string, got {:?}", arg_name, json_value));
-                    WrappedData::Text(s.to_string())
-                },
-                ArgumentType::Boolean => {
-                    if let Some(b) = json_value.as_bool() {
-                        WrappedData::Boolean(b)
-                    } else if let Some(s) = json_value.as_str() {
-                        let b: bool = s.parse().expect(&format!("Argument '{}' expected boolean or string convertible to boolean, got string '{}'", arg_name, s));
-                        WrappedData::Boolean(b)
-                    } else {
-                        panic!("Argument '{}' expected boolean or string convertible to boolean, got {:?}", arg_name, json_value);
-                    }
-                },
-                ArgumentType::Float => {
-                    if let Some(f) = json_value.as_f64() {
-                        WrappedData::Float(f)
-                    } else if let Some(s) = json_value.as_str() {
-                        let f: f64 = s.parse().expect(&format!("Argument '{}' expected float or string convertible to float, got string '{}'", arg_name, s));
-                        WrappedData::Float(f)
-                    } else {
-                        panic!("Argument '{}' expected float or string convertible to float, got {:?}", arg_name, json_value);
-                    }
-                },
+            let wrapped_data = if arg_def.required {
+                let value = json_arg_value
+                    .expect(&format!("Missing required argument '{}' in JSON input.", arg_name));
+                if value.is_null() {
+                    panic!("Required argument '{}' cannot be null.", arg_name);
+                }
+                parse_single_arg(&arg_name, &arg_def.arg_type, value)
+            } else {
+                match json_arg_value {
+                    Some(value) if !value.is_null() => parse_single_arg(&arg_name, &arg_def.arg_type, value),
+                    _ => WrappedData::None, // Argument is optional and missing or null
+                }
             };
             parsed_args.insert(arg_name, wrapped_data);
         }
@@ -188,6 +98,115 @@ pub trait IATool {
     /// # Returns
     /// An `IAToolDefinition` instance describing the tool.
     fn get_description(&self) -> IAToolDefinition;
+}
+
+fn parse_single_arg(arg_name: &str, arg_type: &ArgumentType, json_value: &Value) -> WrappedData {
+    match arg_type {
+        ArgumentType::I8 => {
+            if let Some(num) = json_value.as_i64() {
+                WrappedData::Number(num.try_into().expect(&format!("Number out of range for i8: {}", num)))
+            } else if let Some(s) = json_value.as_str() {
+                let num: i8 = s.parse().expect(&format!("Argument '{}' expected i8 number or string convertible to i8, got string '{}'", arg_name, s));
+                WrappedData::Number(num.into())
+            } else {
+                panic!("Argument '{}' expected i8 number or string convertible to i8, got {:?}", arg_name, json_value);
+            }
+        },
+        ArgumentType::U8 => {
+            if let Some(num) = json_value.as_u64() {
+                WrappedData::Number(num.try_into().expect(&format!("Number out of range for u8: {}", num)))
+            } else if let Some(s) = json_value.as_str() {
+                let num: u8 = s.parse().expect(&format!("Argument '{}' expected u8 number or string convertible to u8, got string '{}'", arg_name, s));
+                WrappedData::Number(num.into())
+            } else {
+                panic!("Argument '{}' expected u8 number or string convertible to u8, got {:?}", arg_name, json_value);
+            }
+        },
+        ArgumentType::I16 => {
+            if let Some(num) = json_value.as_i64() {
+                WrappedData::Number(num.try_into().expect(&format!("Number out of range for i16: {}", num)))
+            } else if let Some(s) = json_value.as_str() {
+                let num: i16 = s.parse().expect(&format!("Argument '{}' expected i16 number or string convertible to i16, got string '{}'", arg_name, s));
+                WrappedData::Number(num.into())
+            } else {
+                panic!("Argument '{}' expected i16 number or string convertible to i16, got {:?}", arg_name, json_value);
+            }
+        },
+        ArgumentType::U16 => {
+            if let Some(num) = json_value.as_u64() {
+                WrappedData::Number(num.try_into().expect(&format!("Number out of range for u16: {}", num)))
+            } else if let Some(s) = json_value.as_str() {
+                let num: u16 = s.parse().expect(&format!("Argument '{}' expected u16 number or string convertible to u16, got string '{}'", arg_name, s));
+                WrappedData::Number(num.into())
+            } else {
+                panic!("Argument '{}' expected u16 number or string convertible to u16, got {:?}", arg_name, json_value);
+            }
+        },
+        ArgumentType::I32 => {
+            if let Some(num) = json_value.as_i64() {
+                WrappedData::Number(num.try_into().expect(&format!("Number out of range for i32: {}", num)))
+            } else if let Some(s) = json_value.as_str() {
+                let num: i32 = s.parse().expect(&format!("Argument '{}' expected i32 number or string convertible to i32, got string '{}'", arg_name, s));
+                WrappedData::Number(num.into())
+            } else {
+                panic!("Argument '{}' expected i32 number or string convertible to i32, got {:?}", arg_name, json_value);
+            }
+        },
+        ArgumentType::U32 => {
+            if let Some(num) = json_value.as_u64() {
+                WrappedData::Number(num.try_into().expect(&format!("Number out of range for u32: {}", num)))
+            } else if let Some(s) = json_value.as_str() {
+                let num: u32 = s.parse().expect(&format!("Argument '{}' expected u32 number or string convertible to u32, got string '{}'", arg_name, s));
+                WrappedData::Number(num.into())
+            } else {
+                panic!("Argument '{}' expected u32 number or string convertible to u32, got {:?}", arg_name, json_value);
+            }
+        },
+        ArgumentType::I64 => {
+            if let Some(num) = json_value.as_i64() {
+                WrappedData::Number(num.into()) // i64 is infallible from i64
+            } else if let Some(s) = json_value.as_str() {
+                let num: i64 = s.parse().expect(&format!("Argument '{}' expected i64 number or string convertible to i64, got string '{}'", arg_name, s));
+                WrappedData::Number(num.into())
+            } else {
+                panic!("Argument '{}' expected i64 number or string convertible to i64, got {:?}", arg_name, json_value);
+            }
+        },
+        ArgumentType::U64 => {
+            if let Some(num) = json_value.as_u64() {
+                WrappedData::Number(num.into()) // u64 is infallible from u64
+            } else if let Some(s) = json_value.as_str() {
+                let num: u64 = s.parse().expect(&format!("Argument '{}' expected u64 number or string convertible to u64, got string '{}'", arg_name, s));
+                WrappedData::Number(num.into())
+            } else {
+                panic!("Argument '{}' expected u64 number or string convertible to u64, got {:?}", arg_name, json_value);
+            }
+        },
+        ArgumentType::Text => {
+            let s = json_value.as_str().expect(&format!("Argument '{}' expected a string, got {:?}", arg_name, json_value));
+            WrappedData::Text(s.to_string())
+        },
+        ArgumentType::Boolean => {
+            if let Some(b) = json_value.as_bool() {
+                WrappedData::Boolean(b)
+            } else if let Some(s) = json_value.as_str() {
+                let b: bool = s.parse().expect(&format!("Argument '{}' expected boolean or string convertible to boolean, got string '{}'", arg_name, s));
+                WrappedData::Boolean(b)
+            } else {
+                panic!("Argument '{}' expected boolean or string convertible to boolean, got {:?}", arg_name, json_value);
+            }
+        },
+        ArgumentType::Float => {
+            if let Some(f) = json_value.as_f64() {
+                WrappedData::Float(f)
+            } else if let Some(s) = json_value.as_str() {
+                let f: f64 = s.parse().expect(&format!("Argument '{}' expected float or string convertible to float, got string '{}'", arg_name, s));
+                WrappedData::Float(f)
+            } else {
+                panic!("Argument '{}' expected float or string convertible to float, got {:?}", arg_name, json_value);
+            }
+        },
+    }
 }
 
 /// Defines the structure of an AI tool, including its name, description, and arguments.
@@ -216,7 +235,8 @@ pub struct IAArgument {
     pub description: String,
     /// The type of data expected for the argument.
     pub arg_type: ArgumentType,
-    /// Whether the argument is required or optional.
+    /// Whether the argument is required (`true`) or optional (`false`).
+    /// Optional arguments can be omitted from the JSON input or provided as `null`.
     pub required: bool,
 }
 
@@ -235,13 +255,15 @@ pub enum ArgumentType {
 /// An enum that wraps different data types that can be passed
 /// as arguments to AI tools.
 ///
-/// Provides a unified way to handle various data types.
+/// Provides a unified way to handle various data types, including a `None` variant
+/// for optional arguments that are missing or `null` in the JSON input.
 #[derive(Debug, Clone)]
 pub enum WrappedData {
     Number(WrappedInt),
     Text(String),
     Boolean(bool),
     Float(f64),
+    None, // Added for optional arguments
 }
 
 /// An enum that wraps different integer types.

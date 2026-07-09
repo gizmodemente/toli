@@ -10,7 +10,7 @@
 //! - Generating a struct that implements the `toli::IATool` trait.
 //! - Managing the conversion between a JSON `String` and native Rust types
 //!   for function calls and return values.
-//! 
+//!
 use quote::{quote, format_ident};
 use syn::{parse_macro_input, ItemFn, FnArg, Pat, Type, ReturnType, LitStr, Expr, Lit, Meta};
 use proc_macro::TokenStream;
@@ -31,6 +31,42 @@ fn format_name_for_description(s: &str) -> String {
     }
 }
 
+/// Helper function to generate the conversion logic from WrappedData to the inner Rust type.
+fn get_conversion_logic(inner_type: &Type, arg_name: &syn::Ident) -> proc_macro2::TokenStream {
+    if let Type::Path(type_path) = inner_type {
+        let type_name = type_path.path.segments.last().unwrap().ident.to_string();
+        match type_name.as_str() {
+            "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" => {
+                quote! {
+                    toli::WrappedData::Number(wrapped_int_val_ref) => {
+                        let val: #inner_type = wrapped_int_val_ref.clone().try_into()
+                            .expect(&format!("Integer conversion error for argument '{}': expected {}, got {:?}", stringify!(#arg_name), stringify!(#inner_type), wrapped_int_val_ref));
+                        val
+                    }, // Added comma
+                }
+            },
+            "String" => {
+                quote! {
+                    toli::WrappedData::Text(val_ref) => val_ref.clone(), // Added comma
+                }
+            },
+            "bool" => {
+                quote! {
+                    toli::WrappedData::Boolean(val_ref) => *val_ref, // Added comma
+                }
+            },
+            "f64" => {
+                quote! {
+                    toli::WrappedData::Float(val_ref) => *val_ref, // Added comma
+                }
+            },
+            _ => quote! { compile_error!("Unsupported inner type for Option") }, // This case should ideally be caught earlier
+        }
+    } else {
+        quote! { compile_error!("Unsupported inner type for Option") } // This case should ideally be caught earlier
+    }
+}
+
 /// Attribute macro to transform a standard Rust function into an AI tool.
 ///
 /// This macro automatically generates a new struct that implements the `toli::IATool` trait,
@@ -39,7 +75,7 @@ fn format_name_for_description(s: &str) -> String {
 /// # Usage
 /// Apply `#[tool]` to a public function. The function's arguments and return type
 /// must be one of the supported types: `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`, `u64`,
-/// `String`, `bool`, or `f64`.
+/// `String`, `bool`, `f64`, or `Option<T>` where `T` is one of the supported types.
 ///
 /// Documentation comments (`///`) on the function will be used as the tool's description.
 /// Argument descriptions can be provided within the function's doc comment under a
@@ -54,6 +90,24 @@ fn format_name_for_description(s: &str) -> String {
 /// #[tool]
 /// pub fn add_numbers(a: i32, b: i32) -> i32 {
 ///     a + b
+/// }
+/// ```
+///
+/// For optional arguments, use `Option<T>` in the function signature. The `required`
+/// field in the tool's argument description will automatically be set to `false`.
+///
+/// ```ignore
+/// /// This is a tool that greets a person.
+/// ///
+/// /// Parameters:
+/// /// - name: The name of the person to greet.
+/// /// - greeting: An optional custom greeting. Defaults to "Hello".
+/// #[tool]
+/// pub fn greet_person(name: String, greeting: Option<String>) -> String {
+///     match greeting {
+///         Some(g) => format!("{} {}", g, name),
+///         None => format!("Hello {}", name),
+///     }
 /// }
 /// ```
 ///
@@ -77,7 +131,7 @@ pub fn tool(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let fn_name = &input_fn.sig.ident;
 
-    // --- Convert snake_case function name to UpperCamelCase for the struct name ---
+    // --- Convert snake_case function name to UpperCamelCamelCase for the struct name ---
     let tool_struct_name_str = fn_name.to_string()
         .split('_')
         .map(|s| {
@@ -183,17 +237,36 @@ pub fn tool(_attr: TokenStream, item: TokenStream) -> TokenStream {
             } else {
                 return syn::Error::new_spanned(pat_type, "Unsupported argument pattern").to_compile_error().into();
             };
-            let arg_type = &pat_type.ty;
+            let original_arg_type = &pat_type.ty; // This is &Box<Type>
+            let mut is_optional = false;
+            // Initialize inner_type_for_parsing as a reference to the Type inside the Box
+            let mut inner_type_for_parsing: &Type = original_arg_type;
 
             let arg_type_enum_variant;
-            let wrapped_data_extraction;
+            let arg_type_for_definition; // This will be the type used in the IAArgument definition
 
-            if let Type::Path(type_path) = &**arg_type {
+            // Check for Option<T>
+            if let Type::Path(type_path) = &**original_arg_type { // Dereference Box to get Type
+                if type_path.path.segments.len() == 1 && type_path.path.segments[0].ident == "Option" {
+                    is_optional = true;
+                    if let syn::PathArguments::AngleBracketed(angle_args) = &type_path.path.segments[0].arguments {
+                        if let Some(syn::GenericArgument::Type(inner_ty)) = angle_args.args.first() {
+                            inner_type_for_parsing = inner_ty; // Assign &Type directly
+                        } else {
+                            return syn::Error::new_spanned(original_arg_type, "Option must have a generic type argument, e.g., Option<String>").to_compile_error().into();
+                        }
+                    } else {
+                        return syn::Error::new_spanned(original_arg_type, "Option must have angle bracketed arguments").to_compile_error().into();
+                    }
+                }
+            }
+
+            // Determine arg_type_enum_variant and arg_type_for_definition based on inner_type_for_parsing
+            if let Type::Path(type_path) = &*inner_type_for_parsing {
                 let type_name = type_path.path.segments.last().unwrap().ident.to_string();
 
                 match type_name.as_str() {
                     "i8" | "u8" | "i16" | "u16" | "i32" | "u32" | "i64" | "u64" => {
-                        // Convert "i8" -> "I8", "u32" -> "U32" for ArgumentType variant
                         let arg_type_ident = format_ident!("{}", {
                             let mut chars = type_name.chars();
                             match chars.next() {
@@ -202,55 +275,66 @@ pub fn tool(_attr: TokenStream, item: TokenStream) -> TokenStream {
                             }
                         });
                         arg_type_enum_variant = quote! { toli::ArgumentType::#arg_type_ident };
-                        wrapped_data_extraction = quote! {
-                            Some(toli::WrappedData::Number(wrapped_int_val_ref)) => {
-                                // Clone wrapped_int_val_ref to pass by value to try_into()
-                                let val: #arg_type = wrapped_int_val_ref.clone().try_into()
-                                    .expect(&format!("Integer conversion error for argument '{}': expected {}, got {:?}", stringify!(#arg_name), stringify!(#arg_type), wrapped_int_val_ref));
-                                val
-                            },
-                        };
+                        arg_type_for_definition = inner_type_for_parsing;
                     },
                     "String" => {
                         arg_type_enum_variant = quote! { toli::ArgumentType::Text };
-                        wrapped_data_extraction = quote! {
-                            Some(toli::WrappedData::Text(val_ref)) => val_ref.clone(),
-                        };
+                        arg_type_for_definition = inner_type_for_parsing;
                     },
                     "bool" => {
                         arg_type_enum_variant = quote! { toli::ArgumentType::Boolean };
-                        wrapped_data_extraction = quote! {
-                            Some(toli::WrappedData::Boolean(val_ref)) => *val_ref,
-                        };
+                        arg_type_for_definition = inner_type_for_parsing;
                     },
                     "f64" => {
                         arg_type_enum_variant = quote! { toli::ArgumentType::Float };
-                        wrapped_data_extraction = quote! {
-                            Some(toli::WrappedData::Float(val_ref)) => *val_ref,
-                        };
+                        arg_type_for_definition = inner_type_for_parsing;
                     },
-                    _ => return syn::Error::new_spanned(arg_type, &format!("Unsupported argument type '{}' for tool macro. Only integer types (i8..u64), String, bool, f64 are supported.", type_name)).to_compile_error().into(),
+                    _ => return syn::Error::new_spanned(inner_type_for_parsing, &format!("Unsupported argument type '{}' for tool macro. Only integer types (i8..u64), String, bool, f64, and Option<T> of these types are supported.", type_name)).to_compile_error().into(),
                 }
             } else {
-                return syn::Error::new_spanned(arg_type, "Unsupported argument type for tool macro. Only integer types (i8..u64), String, bool, f64 are supported.").to_compile_error().into();
+                return syn::Error::new_spanned(inner_type_for_parsing, "Unsupported argument type for tool macro. Only integer types (i8..u64), String, bool, f64, and Option<T> of these types are supported.").to_compile_error().into();
             }
 
+            let conversion_logic_for_some_wrapped_data = get_conversion_logic(inner_type_for_parsing, arg_name);
+
+            let arg_extraction_code = if is_optional {
+                quote! {
+                    match args.get(stringify!(#arg_name)) {
+                        Some(toli::WrappedData::None) | None => None,
+                        Some(wrapped_data) => {
+                            let converted_val = match wrapped_data {
+                                #conversion_logic_for_some_wrapped_data
+                                _ => panic!("Type mismatch for argument '{}'. Expected Option<{}>, got {:?}", stringify!(#arg_name), stringify!(#arg_type_for_definition), wrapped_data),
+                            };
+                            Some(converted_val)
+                        },
+                    }
+                }
+            } else {
+                quote! {
+                    match args.get(stringify!(#arg_name)) {
+                        Some(toli::WrappedData::None) => panic!("Required argument '{}' cannot be null.", stringify!(#arg_name)),
+                        Some(wrapped_data) => {
+                            match wrapped_data {
+                                #conversion_logic_for_some_wrapped_data
+                                _ => panic!("Type mismatch for argument '{}'. Expected {}, got {:?}", stringify!(#arg_name), stringify!(#original_arg_type), wrapped_data),
+                            }
+                        },
+                        None => panic!("Missing required argument '{}'", stringify!(#arg_name)),
+                    }
+                }
+            };
 
             args_map_creation = quote! {
                 #args_map_creation
-                let #arg_name: #arg_type = {
+                let #arg_name: #original_arg_type = {
                     use std::convert::TryInto; // Import TryInto for integer conversions
-                    match args.get(stringify!(#arg_name)) {
-                        #wrapped_data_extraction
-                        Some(other) => panic!("Type mismatch for argument '{}'. Expected {}, got {:?}", stringify!(#arg_name), stringify!(#arg_type), other),
-                        None => panic!("Missing argument '{}'", stringify!(#arg_name)),
-                    }
+                    #arg_extraction_code
                 };
             };
             call_args = quote! { #call_args #arg_name, };
 
             let arg_desc_for_this_arg = arg_descriptions_map.get(&arg_name.to_string());
-            // Generate default argument description if empty
             let arg_desc_literal = if let Some(desc) = arg_desc_for_this_arg {
                 LitStr::new(desc, proc_macro2::Span::call_site())
             } else {
@@ -258,13 +342,15 @@ pub fn tool(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 LitStr::new(&default_desc, proc_macro2::Span::call_site())
             };
 
+            let required_literal = if is_optional { quote! { false } } else { quote! { true } };
+
             generated_arg_inserts = quote! {
                 #generated_arg_inserts
                 arguments.insert(stringify!(#arg_name).to_string(), toli::IAArgument {
                     name: stringify!(#arg_name).to_string(),
                     description: #arg_desc_literal.to_string(),
                     arg_type: #arg_type_enum_variant,
-                    required: true,
+                    required: #required_literal,
                 });
             };
         }

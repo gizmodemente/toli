@@ -10,7 +10,7 @@
 *   **Doc Comment Parsing:** Extracts function descriptions and argument details from standard Rust doc comments.
 *   **Intelligent Description Generation:** Automatically generates default descriptions for functions and arguments if not explicitly provided, by formatting `snake_case` names into human-readable strings (e.g., `add_values` -> "Add values").
 *   **Ignorable Doc Sections:** Automatically ignores common Rust doc sections like `# Examples`, `# Panics`, `# Errors`, and `# Safety` when extracting descriptions.
-*   **Robust JSON Argument Parsing:** The generated tools can receive arguments as a JSON string. The `parse_json_args` method converts JSON values to the expected Rust types, including attempting to parse string representations of numbers and booleans.
+*   **Robust JSON Argument Parsing:** The generated tools can receive arguments as a JSON string. The `parse_json_args` method converts JSON values to the expected Rust types, including attempting to parse string representations of numbers and booleans. It also correctly handles optional arguments.
 *   **Direct Return Types:** The `call` method of the generated tool directly returns the `OriginalReturnType` of the wrapped function, ensuring type safety and avoiding unnecessary conversions.
 
 ## How to Add `toli` to Your Project
@@ -163,14 +163,15 @@ The `#[tool]` macro parses doc comments (`///`) with the following rules:
 
 These sections and their content will not be included in the extracted `description` field of the `IAToolDefinition`.
 
-### Supported Argument
+### Supported Argument Types
 
-The macro supports the following types for function arguments.
+The macro supports the following types for function arguments:
 
 *   All integer primitives: `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`, `u64` (arguments are mapped from `WrappedData::Number(WrappedInt::...)`)
 *   `String` (arguments are mapped from `WrappedData::Text`)
 *   `bool` (arguments are mapped from `WrappedData::Boolean`)
 *   `f64` (arguments are mapped from `WrappedData::Float`)
+*   **Optional Arguments**: `Option<T>`, where `T` is one of the supported types listed above. If an `Option<T>` argument is missing from the JSON input or its value is `null`, `None` will be passed to the function.
 
 Conversions between `WrappedInt` and primitive integer types are handled automatically using `From` and `TryFrom` implementations provided by the `toli` crate, ensuring type safety and proper error handling for out-of-range conversions when extracting arguments. Additionally, `parse_json_args` will attempt to parse string representations of numbers and booleans if the JSON value is a string.
 
