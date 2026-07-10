@@ -5,10 +5,13 @@
 //! It facilitates the creation of tools with typed arguments and descriptions,
 //! allowing AI models to interact with external functions in a structured manner.
 
+use serde_json::Value;
 use std::collections::HashMap;
 use std::convert::{From, TryFrom};
-use serde_json::Value;
 
+#[doc(hidden)]
+pub use async_trait::async_trait;
+pub use macro_toli::async_tool;
 pub use macro_toli::tool;
 
 /// Trait that defines the interface for an AI tool.
@@ -58,36 +61,7 @@ pub trait IATool {
     /// Panics if the JSON structure does not match the expected argument types
     /// or if required arguments are missing or `null`.
     fn parse_json_args(&self, json_string_args: String) -> HashMap<String, WrappedData> {
-        let mut parsed_args = HashMap::new();
-
-        let json_value: Value = serde_json::from_str(&json_string_args)
-            .expect("Failed to parse JSON string for tool arguments.");
-
-        let json_obj = json_value.as_object()
-            .expect("JSON input for tool arguments must be an object.");
-
-        let tool_description = self.get_description();
-
-        for (arg_name, arg_def) in tool_description.arguments {
-            let json_arg_value = json_obj.get(&arg_name);
-
-            let wrapped_data = if arg_def.required {
-                let value = json_arg_value
-                    .expect(&format!("Missing required argument '{}' in JSON input.", arg_name));
-                if value.is_null() {
-                    panic!("Required argument '{}' cannot be null.", arg_name);
-                }
-                parse_single_arg(&arg_name, &arg_def.arg_type, value)
-            } else {
-                match json_arg_value {
-                    Some(value) if !value.is_null() => parse_single_arg(&arg_name, &arg_def.arg_type, value),
-                    _ => WrappedData::None, // Argument is optional and missing or null
-                }
-            };
-            parsed_args.insert(arg_name, wrapped_data);
-        }
-
-        parsed_args
+        parse_json_args_internal(self.get_description(), json_string_args)
     }
 
     /// Retrieves the structured definition of the tool.
@@ -99,6 +73,100 @@ pub trait IATool {
     /// An `IAToolDefinition` instance describing the tool.
     fn get_description(&self) -> IAToolDefinition;
 }
+
+/// Trait that defines the interface for an asynchronous AI tool.
+///
+/// Any type implementing this trait can be considered an async tool
+/// that an AI model can invoke.
+#[async_trait]
+pub trait IAAsyncTool {
+    /// The actual return type of the async function wrapped by this tool.
+    type OriginalReturnType: Send;
+
+    /// Executes the async tool's logic with the provided arguments.
+    ///
+    /// The arguments are provided as a `serde_json::Value`, typically representing
+    /// a JSON object where keys are argument names and values are their corresponding data.
+    /// The implementation will parse this JSON into a `HashMap<String, WrappedData>`
+    /// before invoking the original async function.
+    ///
+    /// # Arguments
+    /// * `json_args` - A `serde_json::Value` containing the arguments for the tool.
+    ///
+    /// # Returns
+    /// A `Pin<Box<dyn Future<Output = Self::OriginalReturnType> + Send>>` representing
+    /// the asynchronous execution of the tool.
+    ///
+    /// # Panics
+    /// If the `json_args` cannot be parsed into the expected `HashMap<String, WrappedData>`
+    /// or if argument type conversions fail.
+    async fn call(&self, json_string_args: String) -> Self::OriginalReturnType;
+
+    /// Converts a `serde_json::Value` into a `HashMap<String, WrappedData>`.
+    ///
+    /// This function is used internally by the `call` method to prepare arguments
+    /// for the original function. It validates and converts JSON values
+    /// into the `WrappedData` enum based on the tool's argument definitions.
+    ///
+    /// For optional arguments (where `IAArgument.required` is `false`), if the argument
+    /// is missing from the JSON input or its value is `null`, `WrappedData::None` will be
+    /// inserted into the map. For required arguments, missing or `null` values will cause a panic.
+    ///
+    /// # Arguments
+    /// * `json_args` - The `serde_json::Value` to parse.
+    ///
+    /// # Returns
+    /// A `HashMap<String, WrappedData>` containing the parsed arguments.
+    ///
+    /// # Panics
+    /// Panics if the JSON structure does not match the expected argument types
+    /// or if required arguments are missing or `null`.
+    fn parse_json_args(&self, json_string_args: String) -> HashMap<String, WrappedData> {
+        parse_json_args_internal(self.get_description(), json_string_args)
+    }
+
+    /// Retrieves the structured definition of the tool.
+    ///
+    /// This definition includes the tool's name, description, and expected arguments,
+    /// allowing AI models to understand how to use it.
+    ///
+    /// # Returns
+    /// An `IAToolDefinition` instance describing the tool.
+    fn get_description(&self) -> IAToolDefinition;
+}
+
+/// Internal helper function to parse JSON arguments for both synchronous and asynchronous tools.
+fn parse_json_args_internal(tool_description: IAToolDefinition, json_string_args: String) -> HashMap<String, WrappedData> {
+    let mut parsed_args = HashMap::new();
+
+    let json_value: Value = serde_json::from_str(&json_string_args)
+        .expect("Failed to parse JSON string for tool arguments.");
+
+    let json_obj = json_value.as_object()
+        .expect("JSON input for tool arguments must be an object.");
+
+    for (arg_name, arg_def) in tool_description.arguments {
+        let json_arg_value = json_obj.get(&arg_name);
+
+        let wrapped_data = if arg_def.required {
+            let value = json_arg_value
+                .expect(&format!("Missing required argument '{}' in JSON input.", arg_name));
+            if value.is_null() {
+                panic!("Required argument '{}' cannot be null.", arg_name);
+            }
+            parse_single_arg(&arg_name, &arg_def.arg_type, value)
+        } else {
+            match json_arg_value {
+                Some(value) if !value.is_null() => parse_single_arg(&arg_name, &arg_def.arg_type, value),
+                _ => WrappedData::None, // Argument is optional and missing or null
+            }
+        };
+        parsed_args.insert(arg_name, wrapped_data);
+    }
+
+    parsed_args
+}
+
 
 fn parse_single_arg(arg_name: &str, arg_type: &ArgumentType, json_value: &Value) -> WrappedData {
     match arg_type {
