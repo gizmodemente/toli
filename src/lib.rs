@@ -5,6 +5,7 @@
 //! It facilitates the creation of tools with typed arguments and descriptions,
 //! allowing AI models to interact with external functions in a structured manner.
 
+pub mod tool_set;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::convert::{From, TryFrom};
@@ -13,6 +14,7 @@ use std::convert::{From, TryFrom};
 pub use async_trait::async_trait;
 pub use macro_toli::async_tool;
 pub use macro_toli::tool;
+pub use crate::tool_set::{ToolSet, IADescriptor};
 
 /// Trait that defines the interface for an AI tool.
 ///
