@@ -19,7 +19,7 @@ To use `toli` in your Rust project, add it as a dependency in your `Cargo.toml` 
 
 ```toml
 [dependencies]
-toli = "0.3.2"
+toli = "0.3.3"
 ```
 
 ## How to Use the `#[tool]` Macro (Synchronous Functions)
