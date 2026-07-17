@@ -6,6 +6,8 @@
 //! allowing AI models to interact with external functions in a structured manner.
 
 pub mod tool_set;
+pub mod open_ai;
+
 use serde_json::Value;
 use std::collections::HashMap;
 use std::convert::{From, TryFrom};

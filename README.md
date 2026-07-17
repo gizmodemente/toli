@@ -19,7 +19,7 @@ To use `toli` in your Rust project, add it as a dependency in your `Cargo.toml` 
 
 ```toml
 [dependencies]
-toli = "0.3.1"
+toli = "0.3.2"
 ```
 
 ## How to Use the `#[tool]` Macro (Synchronous Functions)
@@ -192,14 +192,15 @@ The `ToolSet` struct provides a way to manage and dispatch multiple synchronous 
 ### 1. Define a Descriptor Type
 
 `ToolSet` is generic over a descriptor type `D` which must implement `IADescriptor`. This trait allows `ToolSet` to store tool definitions in a format suitable for your application. Implementing this trait your struct can follow the scheme for the LLM or application that have to use the tool. 
+`OpenAIFunctionTool` has been added to the library, and it can be used as a descriptor type, because OpenAI's function calling format has become a de facto standard in LLM agent programming.
 
 ```rust
-use toli::{IAToolDefinition, ToolSet};
+use toli::{OpenAIFunctionTool, ToolSet};
 
-// For simplicity, we'll use IAToolDefinition as our descriptor type.
+// For simplicity, we'll use OpenAIFunctionTool as our descriptor type.
 // You can define your own struct that implements IADescriptor if you need
 // to store additional metadata with your tool definitions.
-type MyToolSet = ToolSet<IAToolDefinition>;
+type MyToolSet = ToolSet<OpenAIFunctionTool>;
 
 // Create a new ToolSet instance
 let mut tool_set = MyToolSet::new();
@@ -226,7 +227,7 @@ use toli::{async_tool, IAAsyncTool};
 // ... (fetch_remote_data definition from above) ...
 
 // Add the asynchronous tool to the ToolSet
-tool_set.add_async_tool(FetchRemoteDataTool); // FetchRemoteDataTool is the generated struct
+tool_set.add_async_tool(FetchRemoteDataTool); // FetchDataTool is the generated struct
 ```
 
 ### 4. Dispatch Tools
