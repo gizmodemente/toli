@@ -278,6 +278,13 @@ fn parse_single_arg(arg_name: &str, arg_type: &ArgumentType, json_value: &Value)
                 panic!("Argument '{}' expected float or string convertible to float, got {:?}", arg_name, json_value);
             }
         },
+        ArgumentType::Vec(inner_type) => {
+            let arr = json_value.as_array().expect(&format!("Argument '{}' expected an array, got {:?}", arg_name, json_value));
+            let parsed_vec: Vec<WrappedData> = arr.iter()
+                .map(|item| parse_single_arg(arg_name, inner_type, item))
+                .collect();
+            WrappedData::Vec(parsed_vec)
+        }
     }
 }
 
@@ -322,6 +329,7 @@ pub enum ArgumentType {
     Text,
     Boolean,
     Float,
+    Vec(Box<ArgumentType>),
 }
 
 /// An enum that wraps different data types that can be passed
@@ -335,6 +343,7 @@ pub enum WrappedData {
     Text(String),
     Boolean(bool),
     Float(f64),
+    Vec(Vec<WrappedData>),
     None, // Added for optional arguments
 }
 
@@ -485,6 +494,236 @@ impl TryFrom<WrappedInt> for u64 {
             WrappedInt::I16(v) => v.try_into().map_err(|_| "WrappedInt::I16 out of range for u64"),
             WrappedInt::I32(v) => v.try_into().map_err(|_| "WrappedInt::I32 out of range for u64"),
             WrappedInt::I64(v) => v.try_into().map_err(|_| "WrappedInt::I64 out of range for u64"),
+        }
+    }
+}
+
+// --- TryFrom<WrappedData> for PrimitiveType Implementations ---
+impl TryFrom<WrappedData> for String {
+    type Error = &'static str;
+    fn try_from(wrapped: WrappedData) -> Result<Self, Self::Error> {
+        match wrapped {
+            WrappedData::Text(s) => Ok(s),
+            _ => Err("WrappedData is not a Text"),
+        }
+    }
+}
+
+impl TryFrom<WrappedData> for bool {
+    type Error = &'static str;
+    fn try_from(wrapped: WrappedData) -> Result<Self, Self::Error> {
+        match wrapped {
+            WrappedData::Boolean(b) => Ok(b),
+            _ => Err("WrappedData is not a Boolean"),
+        }
+    }
+}
+
+impl TryFrom<WrappedData> for f64 {
+    type Error = &'static str;
+    fn try_from(wrapped: WrappedData) -> Result<Self, Self::Error> {
+        match wrapped {
+            WrappedData::Float(f) => Ok(f),
+            _ => Err("WrappedData is not a Float"),
+        }
+    }
+}
+
+// --- TryFrom<WrappedData> for Vec<PrimitiveType> Implementations ---
+impl TryFrom<WrappedData> for Vec<i8> {
+    type Error = &'static str;
+    fn try_from(wrapped: WrappedData) -> Result<Self, Self::Error> {
+        match wrapped {
+            WrappedData::Vec(vec_wrapped_data) => {
+                vec_wrapped_data.into_iter().map(|wd| {
+                    if let WrappedData::Number(wi) = wd {
+                        i8::try_from(wi)
+                    } else {
+                        Err("Element in WrappedData::Vec is not a Number for Vec<i8>")
+                    }
+                }).collect()
+            },
+            _ => Err("WrappedData is not a Vec for Vec<i8>"),
+        }
+    }
+}
+
+impl TryFrom<WrappedData> for Vec<u8> {
+    type Error = &'static str;
+    fn try_from(wrapped: WrappedData) -> Result<Self, Self::Error> {
+        match wrapped {
+            WrappedData::Vec(vec_wrapped_data) => {
+                vec_wrapped_data.into_iter().map(|wd| {
+                    if let WrappedData::Number(wi) = wd {
+                        u8::try_from(wi)
+                    } else {
+                        Err("Element in WrappedData::Vec is not a Number for Vec<u8>")
+                    }
+                }).collect()
+            },
+            _ => Err("WrappedData is not a Vec for Vec<u8>"),
+        }
+    }
+}
+
+impl TryFrom<WrappedData> for Vec<i16> {
+    type Error = &'static str;
+    fn try_from(wrapped: WrappedData) -> Result<Self, Self::Error> {
+        match wrapped {
+            WrappedData::Vec(vec_wrapped_data) => {
+                vec_wrapped_data.into_iter().map(|wd| {
+                    if let WrappedData::Number(wi) = wd {
+                        i16::try_from(wi)
+                    } else {
+                        Err("Element in WrappedData::Vec is not a Number for Vec<i16>")
+                    }
+                }).collect()
+            },
+            _ => Err("WrappedData is not a Vec for Vec<i16>"),
+        }
+    }
+}
+
+impl TryFrom<WrappedData> for Vec<u16> {
+    type Error = &'static str;
+    fn try_from(wrapped: WrappedData) -> Result<Self, Self::Error> {
+        match wrapped {
+            WrappedData::Vec(vec_wrapped_data) => {
+                vec_wrapped_data.into_iter().map(|wd| {
+                    if let WrappedData::Number(wi) = wd {
+                        u16::try_from(wi)
+                    } else {
+                        Err("Element in WrappedData::Vec is not a Number for Vec<u16>")
+                    }
+                }).collect()
+            },
+            _ => Err("WrappedData is not a Vec for Vec<u16>"),
+        }
+    }
+}
+
+impl TryFrom<WrappedData> for Vec<i32> {
+    type Error = &'static str;
+    fn try_from(wrapped: WrappedData) -> Result<Self, Self::Error> {
+        match wrapped {
+            WrappedData::Vec(vec_wrapped_data) => {
+                vec_wrapped_data.into_iter().map(|wd| {
+                    if let WrappedData::Number(wi) = wd {
+                        i32::try_from(wi)
+                    } else {
+                        Err("Element in WrappedData::Vec is not a Number for Vec<i32>")
+                    }
+                }).collect()
+            },
+            _ => Err("WrappedData is not a Vec for Vec<i32>"),
+        }
+    }
+}
+
+impl TryFrom<WrappedData> for Vec<u32> {
+    type Error = &'static str;
+    fn try_from(wrapped: WrappedData) -> Result<Self, Self::Error> {
+        match wrapped {
+            WrappedData::Vec(vec_wrapped_data) => {
+                vec_wrapped_data.into_iter().map(|wd| {
+                    if let WrappedData::Number(wi) = wd {
+                        u32::try_from(wi)
+                    } else {
+                        Err("Element in WrappedData::Vec is not a Number for Vec<u32>")
+                    }
+                }).collect()
+            },
+            _ => Err("WrappedData is not a Vec for Vec<u32>"),
+        }
+    }
+}
+
+impl TryFrom<WrappedData> for Vec<i64> {
+    type Error = &'static str;
+    fn try_from(wrapped: WrappedData) -> Result<Self, Self::Error> {
+        match wrapped {
+            WrappedData::Vec(vec_wrapped_data) => {
+                vec_wrapped_data.into_iter().map(|wd| {
+                    if let WrappedData::Number(wi) = wd {
+                        i64::try_from(wi)
+                    } else {
+                        Err("Element in WrappedData::Vec is not a Number for Vec<i64>")
+                    }
+                }).collect()
+            },
+            _ => Err("WrappedData is not a Vec for Vec<i64>"),
+        }
+    }
+}
+
+impl TryFrom<WrappedData> for Vec<u64> {
+    type Error = &'static str;
+    fn try_from(wrapped: WrappedData) -> Result<Self, Self::Error> {
+        match wrapped {
+            WrappedData::Vec(vec_wrapped_data) => {
+                vec_wrapped_data.into_iter().map(|wd| {
+                    if let WrappedData::Number(wi) = wd {
+                        u64::try_from(wi)
+                    } else {
+                        Err("Element in WrappedData::Vec is not a Number for Vec<u64>")
+                    }
+                }).collect()
+            },
+            _ => Err("WrappedData is not a Vec for Vec<u64>"),
+        }
+    }
+}
+
+impl TryFrom<WrappedData> for Vec<String> {
+    type Error = &'static str;
+    fn try_from(wrapped: WrappedData) -> Result<Self, Self::Error> {
+        match wrapped {
+            WrappedData::Vec(vec_wrapped_data) => {
+                vec_wrapped_data.into_iter().map(|wd| {
+                    if let WrappedData::Text(s) = wd {
+                        Ok(s)
+                    } else {
+                        Err("Element in WrappedData::Vec is not a Text for Vec<String>")
+                    }
+                }).collect()
+            },
+            _ => Err("WrappedData is not a Vec for Vec<String>"),
+        }
+    }
+}
+
+impl TryFrom<WrappedData> for Vec<bool> {
+    type Error = &'static str;
+    fn try_from(wrapped: WrappedData) -> Result<Self, Self::Error> {
+        match wrapped {
+            WrappedData::Vec(vec_wrapped_data) => {
+                vec_wrapped_data.into_iter().map(|wd| {
+                    if let WrappedData::Boolean(b) = wd {
+                        Ok(b)
+                    } else {
+                        Err("Element in WrappedData::Vec is not a Boolean for Vec<bool>")
+                    }
+                }).collect()
+            },
+            _ => Err("WrappedData is not a Vec for Vec<bool>"),
+        }
+    }
+}
+
+impl TryFrom<WrappedData> for Vec<f64> {
+    type Error = &'static str;
+    fn try_from(wrapped: WrappedData) -> Result<Self, Self::Error> {
+        match wrapped {
+            WrappedData::Vec(vec_wrapped_data) => {
+                vec_wrapped_data.into_iter().map(|wd| {
+                    if let WrappedData::Float(f) = wd {
+                        Ok(f)
+                    } else {
+                        Err("Element in WrappedData::Vec is not a Float for Vec<f64>")
+                    }
+                }).collect()
+            },
+            _ => Err("WrappedData is not a Vec for Vec<f64>"),
         }
     }
 }

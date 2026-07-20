@@ -19,7 +19,7 @@ To use `toli` in your Rust project, add it as a dependency in your `Cargo.toml` 
 
 ```toml
 [dependencies]
-toli = "0.3.3"
+toli = "0.4.0"
 ```
 
 ## How to Use the `#[tool]` Macro (Synchronous Functions)
@@ -178,6 +178,7 @@ The macros support the following types for function arguments:
 *   `bool` (arguments are mapped from `WrappedData::Boolean`)
 *   `f64` (arguments are mapped from `WrappedData::Float`)
 *   **Optional Arguments**: `Option<T>`, where `T` is one of the supported types listed above. If an `Option<T>` argument is missing from the JSON input or its value is `null`, `None` will be passed to the function.
+*   **Array Arguments**: `Vec<T>`, where `T` is one of the supported types listed above (nested arrays not yet supported).
 
 Conversions between `WrappedInt` and primitive integer types are handled automatically using `From` and `TryFrom` implementations provided by the `toli` crate, ensuring type safety and proper error handling for out-of-range conversions when extracting arguments. Additionally, `parse_json_args` will attempt to parse string representations of numbers and booleans if the JSON value is a string.
 
