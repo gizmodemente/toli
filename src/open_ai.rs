@@ -73,7 +73,7 @@ impl OpenAIParameterDescriptor {
             if arg_def.required {
                 required_args.push(arg_name.clone());
             }
-            properties_map.insert(arg_name.clone(), OpenAIPropertyDescriptor::new(arg_def));
+            properties_map.insert(arg_name, OpenAIPropertyDescriptor::new(arg_def));
         }
 
         OpenAIParameterDescriptor {

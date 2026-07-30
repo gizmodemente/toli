@@ -1,16 +1,16 @@
 [package]
 name = "toli"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "A Rust library for generating callable tools from functions to be used in Large Language Models (LLMs) or other systems, with JSON argument parsing and doc comment integration."
 repository = "https://github.com/gizmodemente/toli"
-documentation = "https://docs.rs/toli/0.4.0/toli/"
+documentation = "https://docs.rs/toli/0.4.1/toli/"
 keywords = ["macro", "tool", "ai", "json"]
 categories = ["development-tools", "api-bindings"]
 
 [dependencies]
 serde_json = "1.0"
-macro_toli = "0.4.0"
+macro_toli = "0.4.1"
 async-trait = "0.1.80"
 serde = { version = "1.0.228", features = ["derive"] }

@@ -12,10 +12,14 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::convert::{From, TryFrom};
 
+/// Re-exports the `async_trait` macro for defining async traits.
 #[doc(hidden)]
 pub use async_trait::async_trait;
-pub use macro_toli::async_tool;
+/// Re-exports the `tool` macro for defining synchronous AI tools.
 pub use macro_toli::tool;
+/// Re-exports the `async_tool` macro for defining asynchronous AI tools.
+pub use macro_toli::async_tool;
+/// Re-exports `ToolSet` for managing collections of AI tools and `IADescriptor` for tool descriptions.
 pub use crate::tool_set::{ToolSet, IADescriptor};
 
 /// Trait that defines the interface for an AI tool.
@@ -28,24 +32,24 @@ pub trait IATool {
 
     /// Executes the tool's logic with the provided arguments.
     ///
-    /// The arguments are provided as a `serde_json::Value`, typically representing
+    /// The arguments are provided as a JSON `String`, typically representing
     /// a JSON object where keys are argument names and values are their corresponding data.
     /// The implementation will parse this JSON into a `HashMap<String, WrappedData>`
     /// before invoking the original function.
     ///
     /// # Arguments
-    /// * `json_args` - A `serde_json::Value` containing the arguments for the tool.
+    /// * `json_string_args` - A JSON `String` containing the arguments for the tool.
     ///
     /// # Returns
     /// The direct result of the tool's execution, which is `Self::OriginalReturnType`.
     /// No further conversion is performed on the return value by the `IATool` trait itself.
     ///
     /// # Panics
-    /// If the `json_args` cannot be parsed into the expected `HashMap<String, WrappedData>`
+    /// If the `json_string_args` cannot be parsed into the expected `HashMap<String, WrappedData>`
     /// or if argument type conversions fail.
     fn call(&self, json_string_args: String) -> Self::OriginalReturnType;
 
-    /// Converts a `serde_json::Value` into a `HashMap<String, WrappedData>`.
+    /// Converts a JSON `String` into a `HashMap<String, WrappedData>`.
     ///
     /// This function is used internally by the `call` method to prepare arguments
     /// for the original function. It validates and converts JSON values
@@ -56,7 +60,7 @@ pub trait IATool {
     /// inserted into the map. For required arguments, missing or `null` values will cause a panic.
     ///
     /// # Arguments
-    /// * `json_args` - The `serde_json::Value` to parse.
+    /// * `json_string_args` - The JSON `String` to parse.
     ///
     /// # Returns
     /// A `HashMap<String, WrappedData>` containing the parsed arguments.
@@ -89,24 +93,23 @@ pub trait IAAsyncTool {
 
     /// Executes the async tool's logic with the provided arguments.
     ///
-    /// The arguments are provided as a `serde_json::Value`, typically representing
+    /// The arguments are provided as a JSON `String`, typically representing
     /// a JSON object where keys are argument names and values are their corresponding data.
     /// The implementation will parse this JSON into a `HashMap<String, WrappedData>`
     /// before invoking the original async function.
     ///
     /// # Arguments
-    /// * `json_args` - A `serde_json::Value` containing the arguments for the tool.
+    /// * `json_string_args` - A JSON `String` containing the arguments for the tool.
     ///
     /// # Returns
-    /// A `Pin<Box<dyn Future<Output = Self::OriginalReturnType> + Send>>` representing
-    /// the asynchronous execution of the tool.
+    /// The direct result of the tool's asynchronous execution, which is `Self::OriginalReturnType`.
     ///
     /// # Panics
-    /// If the `json_args` cannot be parsed into the expected `HashMap<String, WrappedData>`
+    /// If the `json_string_args` cannot be parsed into the expected `HashMap<String, WrappedData>`
     /// or if argument type conversions fail.
     async fn call(&self, json_string_args: String) -> Self::OriginalReturnType;
 
-    /// Converts a `serde_json::Value` into a `HashMap<String, WrappedData>`.
+    /// Converts a JSON `String` into a `HashMap<String, WrappedData>`.
     ///
     /// This function is used internally by the `call` method to prepare arguments
     /// for the original function. It validates and converts JSON values
@@ -117,7 +120,7 @@ pub trait IAAsyncTool {
     /// inserted into the map. For required arguments, missing or `null` values will cause a panic.
     ///
     /// # Arguments
-    /// * `json_args` - The `serde_json::Value` to parse.
+    /// * `json_string_args` - The JSON `String` to parse.
     ///
     /// # Returns
     /// A `HashMap<String, WrappedData>` containing the parsed arguments.
@@ -140,6 +143,22 @@ pub trait IAAsyncTool {
 }
 
 /// Internal helper function to parse JSON arguments for both synchronous and asynchronous tools.
+///
+/// This function takes the tool's definition and a JSON string of arguments,
+/// then parses and validates them into a `HashMap<String, WrappedData>`.
+/// It handles required and optional arguments, panicking if required arguments are missing or null,
+/// or if type conversions fail.
+///
+/// # Arguments
+/// * `tool_description` - The `IAToolDefinition` of the tool.
+/// * `json_string_args` - The JSON `String` containing the arguments.
+///
+/// # Returns
+/// A `HashMap<String, WrappedData>` containing the parsed arguments.
+///
+/// # Panics
+/// Panics if the JSON string is invalid, if the JSON structure is not an object,
+/// if required arguments are missing or null, or if argument type conversions fail.
 fn parse_json_args_internal(tool_description: IAToolDefinition, json_string_args: String) -> HashMap<String, WrappedData> {
     let mut parsed_args = HashMap::new();
 
@@ -171,7 +190,25 @@ fn parse_json_args_internal(tool_description: IAToolDefinition, json_string_args
     parsed_args
 }
 
-
+/// Parses a single JSON `Value` into a `WrappedData` enum based on the expected `ArgumentType`.
+///
+/// This helper function is used by `parse_json_args_internal` to convert individual argument
+/// values from their JSON representation into the internal `WrappedData` format.
+/// It handles various primitive types and vectors, performing necessary type conversions
+/// and range checks for integer types.
+///
+/// # Arguments
+/// * `arg_name` - The name of the argument being parsed (used for error messages).
+/// * `arg_type` - The expected `ArgumentType` of the argument.
+/// * `json_value` - The `serde_json::Value` representing the argument's value.
+///
+/// # Returns
+/// A `WrappedData` enum containing the parsed value.
+///
+/// # Panics
+/// Panics if the `json_value` cannot be converted to the specified `arg_type`,
+/// if a number is out of range for its target integer type, or if a string
+/// cannot be parsed into the target numeric or boolean type.
 fn parse_single_arg(arg_name: &str, arg_type: &ArgumentType, json_value: &Value) -> WrappedData {
     match arg_type {
         ArgumentType::I8 => {
@@ -288,10 +325,11 @@ fn parse_single_arg(arg_name: &str, arg_type: &ArgumentType, json_value: &Value)
     }
 }
 
-/// Defines the structure of an AI tool, including its name, description, and arguments.
+/// Defines the structured metadata for an AI tool.
 ///
-/// This structure is used by AI models to understand the capabilities
-/// and usage of a specific tool.
+/// This structure provides essential information about a tool, including its unique identifier,
+/// a human-readable description, and a detailed specification of its arguments.
+/// AI models use this definition to understand the tool's capabilities and how to invoke it correctly.
 #[derive(Debug)]
 pub struct IAToolDefinition {
     /// The unique name of the tool.
@@ -303,9 +341,11 @@ pub struct IAToolDefinition {
     pub arguments: HashMap<String, IAArgument>,
 }
 
-/// Defines an individual argument for an AI tool.
+/// Defines the properties of an individual argument for an AI tool.
 ///
-/// Specifies the name, description, expected data type, and whether the argument is required.
+/// This structure specifies the `name`, `description`, expected `arg_type`,
+/// and `required` status of a single argument.
+/// It helps AI models understand what data to provide for each argument when calling a tool.
 #[derive(Debug)]
 pub struct IAArgument {
     /// The name of the argument.
@@ -319,7 +359,11 @@ pub struct IAArgument {
     pub required: bool,
 }
 
-/// Enumerates the primitive data types that can be used as arguments for AI tools.
+/// Enumerates the supported data types for AI tool arguments.
+///
+/// This enum represents the various primitive types (integers, text, boolean, float)
+/// and a vector type (`Vec`) that AI tools can accept as input.
+/// The `Vec` variant allows for specifying homogeneous lists of other `ArgumentType`s.
 #[derive(Debug, PartialEq)]
 pub enum ArgumentType {
     I8, U8,
