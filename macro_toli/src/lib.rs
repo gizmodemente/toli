@@ -356,11 +356,8 @@ pub fn tool(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let original_return_type = get_original_return_type(&input_fn);
 
-    // Clone input_fn here before it's moved into the quote! macro
-    let input_fn_clone = input_fn.clone();
-
     let expanded = quote! {
-        #input_fn_clone // Use the clone here
+        #input_fn
         pub struct #tool_struct_name;
 
         impl toli::IATool for #tool_struct_name {
@@ -452,11 +449,8 @@ pub fn async_tool(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let original_return_type = get_original_return_type(&input_fn);
 
-    // Clone input_fn here before it's moved into the quote! macro
-    let input_fn_clone = input_fn.clone();
-
     let expanded = quote! {
-        #input_fn_clone // Use the clone here
+        #input_fn
         pub struct #tool_struct_name;
 
         #[toli::async_trait]
